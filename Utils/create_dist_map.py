@@ -9,13 +9,26 @@ for more code
 from osgeo import gdal, ogr, gdalnumeric
 import numpy as np
 import sys
-
+import os
 ####################
 # download spacenet utilities from above link
-path_to_spacenet_utils = '/Users/avanetten/Documents/cosmiq/git/spaceNetUtilities-master/python'
-#path_to_spacenet_utils = os.path.dirname(os.path.realpath(__file__))
-sys.path.extend([path_to_spacenet_utils])
-from spaceNetUtilities import geoTools as gT
+# 1) Compute the real path to your utilities repo
+#    Adjust this so it matches where you cloned the GitHub utilities
+#    e.g. "~/AerialProject/Utils/utilities/spacenetutilities"
+BASE_DIR = os.path.dirname(__file__)                                # .../AerialProject/Utils
+SPACENET_UTILS_DIR = os.path.join(
+    BASE_DIR,
+    "utilities",            # the folder you showed under Utils/
+    "spacenetutilities"     # the cloned SpaceNetUtilities/python/spaceNet folder
+)
+SPACENET_UTILS_DIR = os.path.expanduser(SPACENET_UTILS_DIR)
+assert os.path.isdir(SPACENET_UTILS_DIR), f"Cannot find: {SPACENET_UTILS_DIR}"
+
+# 2) Add that folder to Python’s import search path
+sys.path.insert(0, SPACENET_UTILS_DIR)
+
+# 3) Now you can import geoTools
+import geoTools as gT
 #from spaceNet import labelTools as lT
 
 ###############################################################################

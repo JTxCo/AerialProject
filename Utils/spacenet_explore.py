@@ -37,10 +37,25 @@ import os
 #  spacenet utils are not used here, but are used in geojson_to_pixel_arr.py 
 #      and screate_distance_map.py
 # Set data dir
-spacenet_data_dir = '/path/to/spacenet/data'
-# This is the directory where this script is located
+spacenet_data_dir = os.path.expanduser("~/spacenet/SN2_buildings")
+
+# 2) Since you have “training/AOI_2_Vegas_Train” and 
+#    “testing/AOI_2_Vegas_Test_public”, pick the right AOI folder:
+TRAIN_AOI = "AOI_2_Vegas_Train"
+TEST_AOI  = "AOI_2_Vegas_Test_public"
+
+# 3) Build your imagery & vector paths
+imDir  = os.path.join(spacenet_data_dir, "training", TRAIN_AOI, "RGB-PanSharpen")
+vecDir = os.path.join(spacenet_data_dir, "training", TRAIN_AOI, "geojson")
+
+# 4) Output goes next to this script
 spacenet_explore_dir = os.path.dirname(os.path.realpath(__file__))
-#spacenet_explore_dir = '/Users/avanetten/Documents/cosmiq/git/ave/spacenet_explore/'
+imDir_out = os.path.join(spacenet_explore_dir, "3band")   # existing name in your script
+
+# 5) Verify everything exists
+for p in (imDir, vecDir):
+    if not os.path.isdir(p):
+        raise FileNotFoundError(f"Expected folder not found: {p}")
 # exclore N images in 3band data
 N_ims = 15
 ####################
