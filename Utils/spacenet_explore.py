@@ -80,6 +80,7 @@ def main():
             # The numeric ID part: e.g. "AOI_2_Vegas_img1010"
             # (you can also keep the full name and just prepend "buildings_")
             aoi_part = name_root0.split("_", 1)[1]  
+            name_root = aoi_part
             # Build the actual GeoJSON filename:
             json_name = f"buildings_{aoi_part}.geojson"
             # Point into the 'buildings' subfolder:

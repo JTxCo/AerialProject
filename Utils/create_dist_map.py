@@ -7,6 +7,8 @@ for more code
 '''
 
 from osgeo import gdal, ogr, gdalnumeric
+# Used GDAL instead of rasterio. Converted for ease of use and consistency
+import rasterio as rio 
 import numpy as np
 import sys
 import os
@@ -53,15 +55,15 @@ def create_dist_map(rasterSrc, vectorSrc, npDistFileName='',
     cols = srcRas_ds.RasterXSize
     rows = srcRas_ds.RasterYSize
 
-    geoTrans, poly, ulX, ulY, lrX, lrY = gT.getRasterExtent(srcRas_ds)
-    transform_WGS84_To_UTM, transform_UTM_To_WGS84, utm_cs \
-                                        = gT.createUTMTransform(poly)
+    # Opening and using rasterio to get the geotransform
+    with rio.open(rasterSrc) as src_rio:
+        geoTrans, poly, ulX, ulY, lrX, lrY = gT.getRasterExtent(src_rio)
     line = ogr.Geometry(ogr.wkbLineString)
     line.AddPoint(geoTrans[0], geoTrans[3])
     line.AddPoint(geoTrans[0]+geoTrans[1], geoTrans[3])
 
-    line.Transform(transform_WGS84_To_UTM)
-    metersIndex = line.Length()
+    metersIndex = abs(geoTrans[1])
+
 
     memdrv = gdal.GetDriverByName('MEM')
     dst_ds = memdrv.Create('', cols, rows, 1, gdal.GDT_Byte)
