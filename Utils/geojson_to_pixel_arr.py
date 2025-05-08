@@ -11,11 +11,13 @@ This utilizes the spacenet utilites from: https://github.com/SpaceNetChallenge/u
 
 
 
-from osgeo import gdal, osr
+from osgeo import gdal, osr, ogr, gdal
+
 import numpy as np
 import json
 import sys
 import os
+
 ####################
 # download spacenet utilities from:
 #  https://github.com/SpaceNetChallenge/utilities/tree/master/python/spaceNet 
@@ -44,6 +46,46 @@ sys.path.insert(0, SPACENET_UTILS_DIR)
 import geoTools as gT
 
 ###############################################################################    
+def latlon2pixel(lat, lon, input_raster='', targetsr='', geom_transform=''):
+    '''
+        Function was removed from geoTools after the Medium article was initially publishd so this function is based on the old version
+        Make sure to use this updated version not the old one in the article. 
+        type: (object, object, object, object, object) -> object
+    '''
+    sourcesr = osr.SpatialReference()
+    sourcesr.ImportFromEPSG(4326)
+
+    geom = ogr.Geometry(ogr.wkbPoint)
+    geom.AddPoint(lon, lat)
+
+    if targetsr == '':
+        src_raster = gdal.Open(input_raster)
+        targetsr = osr.SpatialReference()
+        targetsr.ImportFromWkt(src_raster.GetProjectionRef())
+    coord_trans = osr.CoordinateTransformation(sourcesr, targetsr)
+    if geom_transform == '':
+        src_raster = gdal.Open(input_raster)
+        transform = src_raster.GetGeoTransform()
+    else:
+        transform = geom_transform
+
+    x_origin = transform[0]
+    # print(x_origin)
+    y_origin = transform[3]
+    # print(y_origin)
+    pixel_width = transform[1]
+    # print(pixel_width)
+    pixel_height = transform[5]
+    # print(pixel_height)
+    geom.Transform(coord_trans)
+    # print(geom.GetPoint())
+    x_pix = (geom.GetPoint()[0] - x_origin) / pixel_width
+    y_pix = (geom.GetPoint()[1] - y_origin) / pixel_height
+
+    return (x_pix, y_pix)
+
+
+
 def geojson_to_pixel_arr(raster_file, geojson_file, pixel_ints=True,
                        verbose=False):
     '''
@@ -101,7 +143,7 @@ def geojson_to_pixel_arr(raster_file, geojson_file, pixel_ints=True,
                     if verbose: 
                         print("coord:", coord)
                     lon, lat, z = coord 
-                    px, py = gT.latLonToPixel(lat, lon, input_raster=src_raster,
+                    px, py = latLon2pixel(lat, lon, input_raster=src_raster,
                                          targetsr=targetsr, 
                                          geomTransform=geom_transform)
                     poly_list_pix.append([px, py])

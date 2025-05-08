@@ -1,229 +1,157 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Created on Wed Dec 21 09:46:53 2016
-
-@author: avanetten
+Exploratory ETL for SpaceNet SN2 (AOI 2 Vegas).
+Adds debug prints to trace file counts and paths.
 """
 
-'''
-Transform SpaceNet geojson buidling labels data into raster masks.
-Download data via:
-    aws s3api get-object --bucket spacenet-dataset \
-    --key AOI_1_Rio/processedData/processedBuildingLabels.tar.gz \
-    --request-payer requester processedBuildingLabels.tar.gz
-
-Download spacenet utilities from:
-   https://github.com/SpaceNetChallenge/utilities/tree/master/python/spaceNet 
-Spacenet utils are not used here, but are used in geojson_to_pixel_arr.py 
-      and screate_distance_map.py
-
-For further details, see:
-    https://medium.com/the-downlinq/getting-started-with-spacenet-data-827fd2ec9f53
-'''
-    
+import os, sys, glob, shutil
 import matplotlib.pyplot as plt
 import numpy as np
-import shutil
-import glob
-import sys
-import os
-
-
+import rasterio
 ####################
 # EDIT THESE PATHS
-# download spacenet utilities from:
-#   https://github.com/SpaceNetChallenge/utilities/tree/master/python/spaceNet 
-#  spacenet utils are not used here, but are used in geojson_to_pixel_arr.py 
-#      and screate_distance_map.py
-# Set data dir
 spacenet_data_dir = os.path.expanduser("~/spacenet/SN2_buildings")
-
-# 2) Since you have “training/AOI_2_Vegas_Train” and 
-#    “testing/AOI_2_Vegas_Test_public”, pick the right AOI folder:
 TRAIN_AOI = "AOI_2_Vegas_Train"
-TEST_AOI  = "AOI_2_Vegas_Test_public"
-
-# 3) Build your imagery & vector paths
+# Build your imagery & vector paths
 imDir  = os.path.join(spacenet_data_dir, "training", TRAIN_AOI, "RGB-PanSharpen")
-vecDir = os.path.join(spacenet_data_dir, "training", TRAIN_AOI, "geojson")
+vecDir = os.path.join(spacenet_data_dir, "training", TRAIN_AOI, "geojson", "buildings") # there is a sub directory called buildings 
 
-# 4) Output goes next to this script
+# Output root (next to this script)
 spacenet_explore_dir = os.path.dirname(os.path.realpath(__file__))
-imDir_out = os.path.join(spacenet_explore_dir, "3band")   # existing name in your script
 
-# 5) Verify everything exists
+# How many images to demo
+N_ims = 15
+
+# Verify input dirs
 for p in (imDir, vecDir):
     if not os.path.isdir(p):
-        raise FileNotFoundError(f"Expected folder not found: {p}")
-# exclore N images in 3band data
-N_ims = 15
-####################
+        raise FileNotFoundError("Expected folder not found: %s" % p)
+    else:
+        print("Found folder:", p)
 
-# import packages
-sys.path.extend([spacenet_explore_dir])
+# Import local ETL modules
+sys.path.insert(0, spacenet_explore_dir)
 import geojson_to_pixel_arr, create_dist_map, create_building_mask, \
-        plot_truth_coords, plot_building_mask, plot_dist_transform, \
-        plot_all_transforms
+       plot_truth_coords, plot_building_mask, plot_dist_transform, \
+       plot_all_transforms
 
-#
-#
-#####################
-#####################
-## EDIT THESE VALUES
-#
-## download spacenet utilities from:
-##    https://github.com/SpaceNetChallenge/utilities/tree/master/python/spaceNet 
-##  spacenet utils are not used here, but are used in geojson_to_pixel_arr.py 
-##      and screate_distance_map.py
-#
-#path_to_spacenet_utils = '/Users/avanetten/Documents/cosmiq/git/spacenet-utilities-master/python/'
-##sys.path.extend([path_to_spacenet_utils])
-##from spaceNetUtilities import geoTools as gT
-#
-##spacenet_explore_dir = '/Users/avanetten/Documents/cosmiq/git/ave/spacenet_explore/'
-#spacenet_explore_dir = os.path.dirname(os.path.realpath(__file__))
-#sys.path.extend([spacenet_explore_dir])
-#import geojson_to_pixel_arr, create_dist_map, create_building_mask, \
-#        plot_truth_coords, plot_building_mask, plot_dist_transform, \
-#        plot_all_transforms
-#
-## set path to spacenet data
-## acquire from: https://aws.amazon.com/public-datasets/spacenet/    
-#spacenet_data_dir = '/Users/avanetten/Documents/cosmiq/spacenet/data/spacenetFromAWS_08122016/processedData/spacenet_data/'
-##spacenet_data_dir = '/Users/avanetten/Documents/cosmiq/blupr_net/' + 'spacenet_data/'
-#  
-## get N images in 3band data
-#N_ims = 15
-#  
-####################
-####################
+def main():
+    # 1) Prepare output directories
+    dirs = {
+      "images_out": os.path.join(spacenet_explore_dir, "3band"),
+      "coords_demo": os.path.join(spacenet_explore_dir, "pixel_coords_demo"),
+      "mask": os.path.join(spacenet_explore_dir, "building_mask"),
+      "mask_vis": os.path.join(spacenet_explore_dir, "building_mask_vis"),
+      "mask_demo": os.path.join(spacenet_explore_dir, "mask_demo"),
+      "dist": os.path.join(spacenet_explore_dir, "distance_trans"),
+      "dist_demo": os.path.join(spacenet_explore_dir, "distance_trans_demo"),
+      "all_demo": os.path.join(spacenet_explore_dir, "all_demo"),
+    }
+    for name, path in dirs.items():
+        if not os.path.exists(path):
+            os.makedirs(path)
+            print("Created dir [%s]: %s" % (name, path))
+        else:
+            print("Output dir exists [%s]: %s" % (name, path))
 
-def main():    
+    # 2) Copy a sample of images to images_out
+    raster_list = sorted(glob.glob(os.path.join(imDir, "*.tif")))
+    if not raster_list:
+        print("ERROR: no .tif files found in:", imDir)
+        return
+    demo_list = raster_list[10:10+N_ims]
+    print("Selected %d demo images from %d total" % (len(demo_list), len(raster_list)))
+    for src in demo_list:
+        dst = os.path.join(dirs["images_out"], os.path.basename(src))
+        shutil.copy(src, dst)
+    print("Copied demo images to:", dirs["images_out"])
 
-    imDir = os.path.join(spacenet_data_dir, '3band')
-    vecDir = os.path.join(spacenet_data_dir, 'vectorData/geoJson')
-    imDir_out = os.path.join(spacenet_explore_dir, '3band')
+    # 3) Process each demo image
+    for i, rasterSrc in enumerate(demo_list):
+        print("\n=== [%d/%d] Processing %s ===" % (i+1, len(demo_list), rasterSrc))
+        with rasterio.open(rasterSrc) as src:
+            # Read the first three bands (R, G, B) into a H×W×3 array
+            img = src.read([1,2,3])                # → shape (3, H, W)
+            img = img.transpose(1,2,0)             # → shape (H, W, 3)
 
-    ground_truth_patches = []
-    pos_val, pos_val_vis = 1, 255
- 
-    ########################
-    # Create directories
-
-    #coordsDir = spacenet_explore_dir + 'pixel_coords_mask/'
-    coords_demo_dir = os.path.join(spacenet_explore_dir, 'pixel_coords_demo')
-
-    maskDir = os.path.join(spacenet_explore_dir, 'building_mask')
-    maskDir_vis = os.path.join(spacenet_explore_dir, 'building_mask_vis')
-    mask_demo_dir = os.path.join(spacenet_explore_dir, 'mask_demo')
-
-    distDir = os.path.join(spacenet_explore_dir, 'distance_trans')
-    dist_demo_dir = os.path.join(spacenet_explore_dir, 'distance_trans_demo')
-    
-    all_demo_dir = os.path.join(spacenet_explore_dir, 'all_demo')
-
-    # make dirs
-    for p in [imDir_out, coords_demo_dir, maskDir, maskDir_vis, mask_demo_dir,
-              distDir, dist_demo_dir, all_demo_dir]:
-        if not os.path.exists(p):
-            os.mkdir(p)
-
-    # get input images and copy to working directory
-    rasterList = glob.glob(os.path.join(imDir, '*.tif'))[10:10+N_ims]   
-    for im_tmp in rasterList:
-        shutil.copy(im_tmp, imDir_out)
+            # Derive names and paths
+            name_root0 = os.path.splitext(os.path.basename(rasterSrc))[0]
+            # The numeric ID part: e.g. "AOI_2_Vegas_img1010"
+            # (you can also keep the full name and just prepend "buildings_")
+            aoi_part = name_root0.split("_", 1)[1]  
+            # Build the actual GeoJSON filename:
+            json_name = f"buildings_{aoi_part}.geojson"
+            # Point into the 'buildings' subfolder:
+            vectorSrc = os.path.join(vecDir, json_name)
             
-    # Create masks and demo images
-    pixel_coords_list = []
-    for i,rasterSrc in enumerate(rasterList):
-        
-        print (i, "Evaluating", rasterSrc)
+            if not os.path.isfile(vectorSrc):
+                print(f"  WARNING: geojson not found: {vectorSrc}")
+                continue
+            # making sure botoh the files exist, printed above
+            print("  → Found vector file:", vectorSrc)
+            # 3a) Pixel coords
+            pixel_coords, latlon_coords = geojson_to_pixel_arr.geojson_to_pixel_arr(
+                rasterSrc, vectorSrc, pixel_ints=True, verbose=False
+            )
+            print("  → pixel_coords:", len(pixel_coords), "polygons")
 
-        input_image = plt.imread(rasterSrc) # cv2.imread(rasterSrc, 1)
-        
-         # get name root
-        name_root0 = rasterSrc.split('/')[-1].split('.')[0]
-        # remove 3band or 8band prefix
-        name_root = name_root0[6:]
-        vectorSrc = os.path.join(vecDir, name_root + '_Geo.geojson')
-        maskSrc = os.path.join(maskDir, name_root0 + '.tif')
-        
-        ####################################################
-        # pixel coords and ground truth patches
-        pixel_coords, latlon_coords = \
-            geojson_to_pixel_arr.geojson_to_pixel_arr(rasterSrc, vectorSrc, 
-                                                      pixel_ints=True,
-                                                      verbose=False)
-        pixel_coords_list.append(pixel_coords)
-       
-        plot_name = os.path.join(coords_demo_dir, name_root + '.png')
-        patch_collection, patch_coll_nofill = \
-            plot_truth_coords.plot_truth_coords(input_image, pixel_coords,   
-                  figsize=(8,8), plot_name=plot_name,
-                  add_title=False)
-        ground_truth_patches.append(patch_collection)
-        plt.close('all')
-        ####################################################
-        
-        ####################################################
-        #building mask
-        outfile = os.path.join(maskDir, name_root0 + '.tif')
-        outfile_vis = os.path.join(maskDir_vis, name_root0 + '.tif')
+            out_png = os.path.join(dirs["coords_demo"], name_root + ".png")
+            plot_truth_coords.plot_truth_coords(
+                img, pixel_coords, figsize=(8,8), plot_name=out_png, add_title=False
+            )
+            print("  → saved coords demo:", out_png)
+
+            # 3b) Building masks
+            tif_mask = os.path.join(dirs["mask"], name_root0 + ".tif")
+            tif_mask_vis = os.path.join(dirs["mask_vis"], name_root0 + ".tif")
+            create_building_mask.create_building_mask(
+                rasterSrc, vectorSrc, npDistFileName=tif_mask, burn_values=1
+            )
+            create_building_mask.create_building_mask(
+                rasterSrc, vectorSrc, npDistFileName=tif_mask_vis, burn_values=255
+            )
+            print("  → masks wrote:", tif_mask, "and", tif_mask_vis)
+
+            out_png2 = os.path.join(dirs["mask_demo"], name_root + ".png")
+            mask_img = plt.imread(tif_mask)
+            plot_building_mask.plot_building_mask(
+                img, pixel_coords, mask_img, figsize=(8,8),
+                plot_name=out_png2, add_title=False
+            )
+            print("  → saved mask demo:", out_png2)
+
+            # 3c) Distance transform
+            np_dist = os.path.join(dirs["dist"], name_root0 + ".npy")
+            create_dist_map.create_dist_map(
+                rasterSrc, vectorSrc, npDistFileName=np_dist,
+                noDataValue=0, burn_values=1, dist_mult=1, vmax_dist=64
+            )
+            print("  → distance map npy:", np_dist)
+
+            out_png3 = os.path.join(dirs["dist_demo"], name_root + ".png")
+            dist_img = np.load(np_dist)
+            plot_dist_transform.plot_dist_transform(
+                img, pixel_coords, dist_img, figsize=(8,8),
+                plot_name=out_png3, add_title=False, colorbar=True
+            )
+            print("  → saved dist demo:", out_png3)
+
+            # 3d) All transforms
+            out_png4 = os.path.join(dirs["all_demo"], name_root + ".png")
+            plot_all_transforms.plot_all_transforms(
+                img, pixel_coords, plt.imread(tif_mask), dist_img,
+                figsize=(8,8), plot_name=out_png4,
+                add_global_title=False, colorbar=False,
+                add_titles=False, poly_face_color='orange',
+                poly_edge_color='red', poly_nofill_color='blue',
+                cmap='bwr'
+            )
+            print("  → saved all_demo:", out_png4)
+
+    print("\nDone.")
     
-        # create mask from 0-1 and mask from 0-255 (for visual inspection)
-        create_building_mask.create_building_mask(rasterSrc, vectorSrc, 
-                                                  npDistFileName=outfile, 
-                                                  burn_values=pos_val)
-        create_building_mask.create_building_mask(rasterSrc, vectorSrc, 
-                                                  npDistFileName=outfile_vis, 
-                                                  burn_values=pos_val_vis)
-        
-        plot_name = os.path.join(mask_demo_dir, name_root + '.png')
-        mask_image = plt.imread(outfile)    # cv2.imread(outfile, 0)
-        plot_building_mask.plot_building_mask(input_image, pixel_coords,
-                           mask_image,
-                           figsize=(8,8), plot_name=plot_name,
-                           add_title=False) 
-        plt.close('all')
-        ####################################################   
-        
-        ####################################################
-        # signed distance transform
-        # remove 3band or 8band prefix
-        outfile = os.path.join(distDir, name_root0 + '.npy')#'.tif'    
-        create_dist_map.create_dist_map(rasterSrc, vectorSrc, 
-                                        npDistFileName=outfile, 
-                                        noDataValue=0, burn_values=pos_val, 
-                                        dist_mult=1, vmax_dist=64)
-        # plot
-        #plot_name = os.path.join(dist_demo_dir + name_root, '_no_colorbar.png')
-        plot_name = os.path.join(dist_demo_dir, name_root + '.png')
-        mask_image = plt.imread(maskSrc)    # cv2.imread(maskSrc, 0)
-        dist_image = np.load(outfile)
-        plot_dist_transform.plot_dist_transform(input_image, pixel_coords, 
-                                                dist_image, figsize=(8,8),
-                                                plot_name=plot_name, 
-                                                add_title=False,
-                                                colorbar=True)#False)
-        plt.close('all')
-        ####################################################
 
-        ####################################################
-        # plot all transforms
-        plot_name = os.path.join(all_demo_dir, name_root + '.png')#+ '_titles.png'
-        mask_image = plt.imread(maskSrc)    # cv2.imread(maskSrc, 0)
-        dist_image = np.load(outfile)
-        plot_all_transforms.plot_all_transforms(input_image, pixel_coords, mask_image, dist_image, 
-                        figsize=(8,8), plot_name=plot_name, add_global_title=False, 
-                        colorbar=False, 
-                        add_titles=False,#True,
-                        poly_face_color='orange', poly_edge_color='red', 
-                        poly_nofill_color='blue', cmap='bwr')        
-        plt.close('all')
-        ####################################################
-        
+if __name__ == "__main__":
+    main()
 
-###############################################################################    
-if __name__ == '__main__':
-    main()        
