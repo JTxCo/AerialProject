@@ -99,3 +99,7 @@ Utils/**/*.tif
 # Misc
 *.cache
 *.bak
+
+# Except for this image: 
+!AerialProject/Utils/mask_demo/AOI_2_Vegas_img1010.png
+!AOI_2_Vegas_img1010.png
