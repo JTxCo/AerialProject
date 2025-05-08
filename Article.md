@@ -53,6 +53,10 @@ The SpaceNet 2 dataset is  one of many different large-scale dataset of high-res
 More information about the dataset can be found at this link: [Getting Started with SpaceNet Data](https://medium.com/the-downlinq/getting-started-with-spacenet-data-827fd2ec9f53). This article was published along with the intial dataset and so is a good starting point, but the attached code is flawed. For the most up to date code please refer to the attached repository.
 
 
+### Evaluation Metrics
+The SpaceNet Dataset has its own evaluation metrics, based on Intersection over Union (IoU) detailed here: [SpaceNet Evaluation Metrics](https://medium.com/the-downlinq/the-spacenet-metric-612183cc2ddb)
+
+
 ### Processing and Transforming the Data
 The SpaceNet dataset is provided in GeoTIFF format, which is a raster format that includes geospatial metadata. To prepare the data for training and evaluation, we need to convert the GeoTIFF files into a format that can be used by SAM-2. This involves several steps:
 
@@ -67,8 +71,8 @@ The SpaceNet dataset is provided in GeoTIFF format, which is a raster format tha
    Organize the chips and masks into a directory structure compatible with SAM-2’s data loader (PascalVOC or custom folder layout) and apply on-the-fly augmentations (random flips, color jitter) during training.
 
 
-The model is trained on images like this one: 
-![Image of segmentation](AOI_2_Vegas_img1010.png)
+The model is trained on a mask of an image like this one from Las Vegas: 
+![Image of segmentation](Utils/mask_demo/AOI_2_Vegas_img1010.png)
 
 
 
@@ -85,20 +89,20 @@ The Segment Anything Model (SAM) 2 is a state-of-the-art segmentation model deve
 | sam2.1_hiera_large            | 224.4    | 39.5        | 79.5            | 74.6           | 80.6          |
 
 
+## Results and Discussion
+Here are the top results produced in the competition when it concluded: 
+![Image of results](Utils/all_demo/previous_results.png)
+
+The current state of the model does not produce any tangible results. Due to the size of the dataset and the complexity of the model, training has not yet been completed. Initially, attempts at segmentation without fine-tuning the model were made, but these results were not satisfactory, so tuning was required. Furthermore, the model has not been trained on the entirety of the dataset, but only 1 city, Las Vegas. Which in the top results, was the city that averaged the best results. This was most likely due to the "easier" style of US citiies and suburbs. The other cities in the dataset are Paris, Khartoum, and Shanghai. The results of the model are not yet available, but the training process is ongoing. 
+
+## Limitations & Future work: 
+-  **Documentation gaps:**
+  The SpaceNet utilities and SAM-2 setup guides are outdated and incomplete, reflecting the transition from SAM-1 to SAM-2 in 2024. Comprehensive, up-to-date installation and usage instructions are needed. We can now contribute to the documentation, as we have gone through the process of setting up the model and dataset. 
+- **Partial training scope:**
+  We have only fine-tuned on a small subset (Las Vegas) and have not yet trained on the full SpaceNet2 dataset or the other AOIs (Rio, Paris, Shanghai). Full-scale training and cross-AOI evaluation remain to be done.
+- **Single-modality input:**
+  Our current pipeline uses only 3-band RGB chips. Extending to multispectral (e.g. NIR) or pan-sharpened single-band imagery will require adapting the model’s input stem or channel-selection strategy
+- **Future Work:** Now that the model and dataset are set up and working, the hardest parts so far are done. The next step is to train the model on the Las Vegas dataset and then the other cities. This will take time, but once the model is trained, the results should be available.
 
 
-
-
-
-
-
-
-
-
-
-
-
-We adapt the SAM-2 pipeline to overhead data by  
-1) tiling large GeoTIFFs into 512×512 chips,  
-2) rasterizing GeoJSON footprints into pixel-aligned binary masks, and  
-3) fine-tuning the SAM-2 “hiera_b+” checkpoint under Apple MPS with bfloat16 precision.
+There is exciting potential with this work and the results could be significant to how aerial images are processed and analyzed.

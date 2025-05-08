@@ -102,4 +102,5 @@ Utils/**/*.tif
 
 # Except for this image: 
 !AerialProject/Utils/mask_demo/AOI_2_Vegas_img1010.png
-!AOI_2_Vegas_img1010.png
+!Utils/3band/RGB-PanSharpen_AOI_2_Vegas_img1010.tif
+!Utils/all_demo/previous_results.png
