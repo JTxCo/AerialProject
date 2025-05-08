@@ -68,7 +68,7 @@ The SpaceNet dataset is provided in GeoTIFF format, which is a raster format tha
 
 
 The model is trained on images like this one: 
-[Alt text describing image](AOI_2_Vegas_img1010.png)
+![Image of segmentation](AOI_2_Vegas_img1010.png)
 
 
 
